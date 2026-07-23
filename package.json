@@ -1,6 +1,9 @@
 {
   "name": "sync-and-revenue-assignment",
   "version": "1.0.0",
+  "engines": {
+    "node": "20.x"
+  },
   "description": "Backend assignment: idempotent multi-source sync pipeline + drift-proof revenue metrics",
   "main": "dist/server.js",
   "scripts": {
