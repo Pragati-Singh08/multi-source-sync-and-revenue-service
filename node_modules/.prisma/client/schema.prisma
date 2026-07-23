@@ -1,0 +1,113 @@
+// ============================================================================
+// Prisma schema — single source of truth for the DB shape.
+// Deployed against Supabase Postgres (any Postgres works — Supabase's free
+// tier is just the connection string in DATABASE_URL).
+// ============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// PROBLEM 1: Sync pipeline
+// ---------------------------------------------------------------------------
+
+// One normalized table for every entity coming from any of the 3 sources.
+// Instead of 3 separate tables shaped like each vendor's API, every source
+// adapter maps its own field names into a common envelope before it ever
+// touches the DB. `normalized` holds the fields every entityType agrees on
+// (id, displayName, timestamps, amount if relevant); `raw` keeps the
+// untouched vendor payload for audit/debug so nothing is lost in translation.
+model SyncRecord {
+  id              String   @id @default(cuid())
+  sourceSystem    String // "hubspot" | "stripe" | "google_calendar"
+  entityType      String // "contact" | "payment" | "event"
+  externalId      String // the vendor's own ID for this record
+  normalized      Json // common shape, same keys regardless of source
+  raw             Json // untouched vendor payload
+  sourceUpdatedAt DateTime // vendor's own "updated at" — drives ordering/backfill
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // THIS is the idempotency guarantee: no matter how many times a webhook
+  // fires or a sync job re-runs, (sourceSystem, externalId) can only ever
+  // exist once. Every write goes through upsert() against this key.
+  @@unique([sourceSystem, externalId])
+  @@index([entityType])
+  @@index([sourceUpdatedAt])
+}
+
+// Tracks where each source's incremental cursor is. One row per source.
+model SyncCursor {
+  id             String    @id @default(cuid())
+  sourceSystem   String    @unique
+  cursor         String? // opaque token/timestamp the source gave us
+  lastFullSyncAt DateTime? // last time we did a full backfill
+  lastSyncedAt   DateTime?
+  updatedAt      DateTime  @updatedAt
+}
+
+// One row per sync job execution, across all sources, for observability
+// and for the demo video ("show me it degrading gracefully").
+model SyncRun {
+  id         String    @id @default(cuid())
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  status     String // "success" | "partial" | "failed"
+  results    Json // { hubspot: {...}, stripe: {...}, google_calendar: {...} }
+}
+
+// Dedup ledger for inbound webhooks. Providers guarantee at-least-once
+// delivery, i.e. the same event can and will arrive twice. This table is
+// the first line of defense before the record even reaches SyncRecord.
+model WebhookEvent {
+  id           String    @id @default(cuid())
+  sourceSystem String
+  eventId      String // vendor's own event/delivery ID
+  receivedAt   DateTime  @default(now())
+  processedAt  DateTime?
+
+  @@unique([sourceSystem, eventId])
+}
+
+// ---------------------------------------------------------------------------
+// PROBLEM 2: Drift-proof revenue metric
+// ---------------------------------------------------------------------------
+
+// The allow-list. Every (source, raw status) pair we've ever seen must be
+// explicitly mapped to a canonical status before it can count as revenue.
+// Unmapped combinations resolve to "unmapped" at ingest time (see
+// statusMap.ts) and are excluded by construction — a brand new status value
+// from a brand new source literally cannot contribute to revenue until a
+// human adds a row here. That's the allow-list property the assignment asks
+// for, enforced in schema, not just in application logic.
+model StatusMapping {
+  id              String @id @default(cuid())
+  sourceSystem    String
+  rawStatus       String
+  canonicalStatus String // "collected" | "pending" | "failed" | "voided" | "refunded"
+
+  @@unique([sourceSystem, rawStatus])
+}
+
+model Transaction {
+  id              String   @id @default(cuid())
+  sourceSystem    String // "stripe" | "invoicer"
+  externalId      String
+  rawStatus       String // vendor's own word: "succeeded", "paid", "void"...
+  canonicalStatus String // resolved via StatusMapping at ingest time
+  amountCents     Int
+  currency        String   @default("usd")
+  occurredAt      DateTime // the date used for range filtering / bucketing
+  raw             Json
+  createdAt       DateTime @default(now())
+
+  @@unique([sourceSystem, externalId])
+  @@index([occurredAt])
+  @@index([canonicalStatus])
+}
