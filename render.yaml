@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: sync-and-revenue-assignment
+    env: node
+    plan: free
+    buildCommand: npm install && npx prisma generate && npm run build
+    startCommand: npx prisma migrate deploy && npm start
+    envVars:
+      - key: DATABASE_URL
+        sync: false # set manually to your Supabase connection string
+      - key: HUBSPOT_TOKEN
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: GOOGLE_CALENDAR_API_KEY
+        sync: false
+      - key: GOOGLE_CALENDAR_ID
+        sync: false
+
+  # Optional: a scheduled job hitting POST /sync/run on an interval, instead
+  # of (or in addition to) a manual trigger. Render's free tier supports
+  # Cron Jobs as a separate service type.
+  - type: cron
+    name: sync-scheduled-run
+    env: node
+    plan: free
+    schedule: "*/30 * * * *" # every 30 minutes
+    buildCommand: npm install
+    startCommand: "curl -X POST https://<your-web-service>.onrender.com/sync/run"
