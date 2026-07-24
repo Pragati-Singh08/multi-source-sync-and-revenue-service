@@ -6,18 +6,17 @@
   },
   "description": "Backend assignment: idempotent multi-source sync pipeline + drift-proof revenue metrics",
   "main": "dist/server.js",
-  "scripts": {
-    "build": "tsc -p .",
-    "postinstall": "prisma generate",
-    "prestart": "npm run build",
-    "start": "node dist/server.js",
-    "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
-    "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate deploy",
-    "prisma:migrate:dev": "prisma migrate dev",
-    "seed": "ts-node src/seed/seed.ts",
-    "test": "jest --runInBand"
-  },
+ "scripts": {
+  "build": "tsc -p .",
+  "postinstall": "prisma generate",
+  "start": "node dist/server.js",
+  "dev": "ts-node-dev --respawn --transpile-only src/server.ts",
+  "prisma:generate": "prisma generate",
+  "prisma:migrate": "prisma migrate deploy",
+  "prisma:migrate:dev": "prisma migrate dev",
+  "seed": "ts-node src/seed/seed.ts",
+  "test": "jest --runInBand"
+},
   "dependencies": {
     "@prisma/client": "^5.19.1",
     "axios": "^1.7.7",
