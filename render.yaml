@@ -26,4 +26,8 @@ services:
     plan: free
     schedule: "*/30 * * * *" # every 30 minutes
     buildCommand: npm install
-    startCommand: "curl -X POST https://<your-web-service>.onrender.com/sync/run"
+    # startCommand: "curl -X POST https://<your-web-service>.onrender.com/sync/run"
+   startCommand: "curl -X POST https://sync-and-revenue-assignment.onrender.com/sync/run -H 'Authorization: Bearer $SYNC_WEBHOOK_SECRET'"
+    envVars:
+      - key: SYNC_WEBHOOK_SECRET
+        sync: false
