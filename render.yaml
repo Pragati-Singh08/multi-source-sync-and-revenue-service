@@ -1,6 +1,7 @@
 services:
   - type: web
-    name: sync-and-revenue-assignment
+    # name: sync-and-revenue-assignment
+    name: multi-source-sync-and-revenue-service
     env: node
     plan: free
     buildCommand: npm install && npx prisma generate && npm run build
